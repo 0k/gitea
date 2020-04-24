@@ -1908,6 +1908,14 @@ function initAdmin() {
     }
   }
 
+  function onGroupEnabledChange() {
+    if ($('#group_enabled').prop('checked')) {
+      $('#group_box').show();
+    } else {
+      $('#group_box').hide();
+    }
+  }
+
   function onOAuth2Change() {
     $('.open_id_connect_auto_discovery_url, .oauth2_use_custom_url').hide();
     $('.open_id_connect_auto_discovery_url input[required]').removeAttr('required');
@@ -2002,6 +2010,7 @@ function initAdmin() {
     });
     $('#auth_type').trigger('change');
     $('#security_protocol').on('change', onSecurityProtocolChange);
+    $('#group_enabled').on('change', onGroupEnabledChange);
     $('#use_paged_search').on('change', onUsePagedSearchChange);
     $('#oauth2_provider').on('change', onOAuth2Change);
     $('#oauth2_use_custom_url').on('change', onOAuth2UseCustomURLChange);
@@ -2010,6 +2019,7 @@ function initAdmin() {
   if ($('.admin.edit.authentication').length > 0) {
     const authType = $('#auth_type').val();
     if (authType === '2' || authType === '5') {
+      $('#group_enabled').on('change', onGroupEnabledChange);
       $('#security_protocol').on('change', onSecurityProtocolChange);
       if (authType === '2') {
         $('#use_paged_search').on('change', onUsePagedSearchChange);

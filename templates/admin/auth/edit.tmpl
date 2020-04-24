@@ -79,6 +79,42 @@
 						<input id="restricted_filter" name="restricted_filter" value="{{$cfg.RestrictedFilter}}">
 						<p class="help">{{.i18n.Tr "admin.auths.restricted_filter_helper"}}</p>
 					</div>
+
+					<div class="inline field">
+						<div class="ui checkbox">
+							<label><strong>{{.i18n.Tr "admin.auths.verify_group_membership"}}</strong></label>
+							<input id="group_enabled" name="group_enabled" class="enable-system" type="checkbox" {{if $cfg.GroupEnabled}}checked{{end}}>
+							<p class="help">{{.i18n.Tr "admin.auths.verify_group_membership_helper"}}</p>
+						</div>
+					</div>
+
+					<div class="ui segment field {{if not $cfg.GroupEnabled}}hide{{end}}" id="group_box">
+						<div class="field">
+							<label for="group_base">{{.i18n.Tr "admin.auths.group_base"}}</label>
+							<input id="group_base" name="group_base" value="{{$cfg.GroupDN}}" placeholder="e.g. ou=group,dc=mydomain,dc=com">
+						</div>
+						<div class="field">
+							<label for="group_member_uid">{{.i18n.Tr "admin.auths.group_attribute_contain_user_list"}}</label>
+							<input id="group_member_uid" name="group_member_uid" value="{{$cfg.GroupMemberUID}}" placeholder="e.g. memberUid">
+						</div>
+						<div class="field">
+							<label for="user_attribute_in_group">{{.i18n.Tr "admin.auths.user_attribute_listed_in_group"}}</label>
+							<input id="user_attribute_in_group" name="user_uid" value="{{$cfg.UserAttributeInGroup}}" placeholder="e.g. uid">
+						</div>
+						<div class="field">
+							<label for="member_group_filter">{{.i18n.Tr "admin.auths.member_group_filter"}}</label>
+							<input id="member_group_filter" name="user_group_filter" value="{{$cfg.member_group_filter}}" placeholder="e.g. (cn=gitea-users)">
+						</div>
+						<div class="field">
+							<label for="admin_group_filter">{{.i18n.Tr "admin.auths.admin_group_filter"}}</label>
+							<input id="admin_group_filter" name="admin_group_filter" value="{{$cfg.admin_group_filter}}" placeholder="e.g. (|(cn=gitea-admins)(cn=admins))">
+						</div>
+						<div class="field">
+							<label for="restricted_group_filter">{{.i18n.Tr "admin.auths.restricted_group_filter"}}</label>
+							<input id="restricted_group_filter" name="restricted_group_filter" value="{{$cfg.restricted_group_filter}}" placeholder="e.g. (cn=gitea-restricted-users)">
+						</div>
+					</div>
+
 					<div class="field">
 						<label for="attribute_username">{{.i18n.Tr "admin.auths.attribute_username"}}</label>
 						<input id="attribute_username" name="attribute_username" value="{{$cfg.AttributeUsername}}" placeholder="{{.i18n.Tr "admin.auths.attribute_username_placeholder"}}">

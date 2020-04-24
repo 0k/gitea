@@ -37,6 +37,13 @@ type Source struct {
 	BindPassword          string // Bind DN password
 	UserBase              string // Base search path for users
 	UserDN                string // Template for the DN of the user for simple auth
+	GroupEnabled          bool   // if the group checking is enabled
+	GroupBase             string // Group Search Base
+	GroupMemberUID        string // Group Attribute containing array of UserAttributeInGroup
+	UserAttributeInGroup  string // User Attribute listed in Group
+	MemberGroupFilter     string // Group Name Filter
+	AdminGroupFilter      string // Admin Group Name Filter
+	RestrictedGroupFilter string // Restricted Group Name Filter
 	AttributeUsername     string // Username attribute
 	AttributeName         string // First name attribute
 	AttributeSurname      string // Surname attribute
@@ -83,6 +90,67 @@ func (ls *Source) sanitizedUserDN(username string) (string, bool) {
 
 	return fmt.Sprintf(ls.UserDN, username), true
 }
+
+func (ls *Source) sanitizedGroupFilter(group string) (string, bool) {
+	// See http://tools.ietf.org/search/rfc4515
+	badCharacters := "\x00*\\"
+	if strings.ContainsAny(group, badCharacters) {
+		log.Debug("'%s' contains invalid query characters. Aborting.", group)
+		return "", false
+	}
+
+	return group, true
+}
+
+func (ls *Source) sanitizedGroupBase(groupBase string) (string, bool) {
+	// See http://tools.ietf.org/search/rfc4514: "special characters"
+	badCharacters := "\x00()*\\'\"#+;<>"
+	if strings.ContainsAny(groupBase, badCharacters) {
+		log.Debug("'%s' contains invalid DN characters. Aborting.", groupBase)
+		return "", false
+	}
+
+	return groupBase, true
+}
+
+
+func (ls *Source) groupSearch(l *ldap.Conn, groupBase string, groupFilter string, uid string) (bool, bool) {
+    groupFilter, ok := ls.sanitizedGroupFilter(groupFilter)
+	if !ok {
+		log.Error("LDAP group filter '%v' is invalid", groupFilter)
+		return false, false  // First bool is 'isSet' info if second bool is false (=not ok)
+	}
+
+	if len(groupFilter) == 0 {
+		return true, false  // First bool is 'isSet' info if second bool is false (=not ok)
+	}
+
+	log.Trace("Fetching groups '%v' with filter '%s' and base '%s'",
+		ls.GroupMemberUID, groupFilter, groupBase)
+	groupSearch := ldap.NewSearchRequest(
+		groupBase, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false, groupFilter,
+		[]string{ls.GroupMemberUID},
+		nil)
+
+	srg, err := l.Search(groupSearch)
+	if err != nil {
+		log.Error("LDAP group search failed unexpectedly: %v", err)
+		return false, false  // First bool is 'isSet' info if second bool is false (=not ok)
+	} else if len(srg.Entries) < 1 {
+		log.Error("LDAP group search failed: 0 entries")
+		return false, true  // First bool is 'isMember' info if second bool is true (=ok)
+	}
+
+	for _,group := range srg.Entries {
+		for _,member := range group.GetAttributeValues(ls.GroupMemberUID) {
+			if member == uid {
+				return true, true
+			}
+		}
+	}
+	return false, true  // First bool is 'isMember' info if second bool is true (=ok)
+}
+
 
 func (ls *Source) findUserDN(l *ldap.Conn, name string) (string, bool) {
 	log.Trace("Search for LDAP user: %s", name)
@@ -340,6 +408,67 @@ func (ls *Source) SearchEntry(name, passwd string, directBind bool) *SearchResul
 		}
 	}
 
+    // Check group membership
+    if ls.GroupEnabled {
+
+		uid := sr.Entries[0].GetAttributeValue(ls.UserAttributeInGroup)
+
+		groupBase, ok := ls.sanitizedGroupBase(ls.GroupBase)
+		if !ok {
+			return nil
+		}
+
+		// Admin Group member
+
+		isUnsetOrIsMember, ok := ls.groupSearch(l, groupBase, ls.AdminGroupFilter, uid)
+		if !ok {  // Could be unexpected error or simply unset value
+			isUnset := isUnsetOrIsMember
+			if !isUnset {  // is unexpected error
+				log.Error("LDAP admin group membership test failed unexpectedly !")
+				return nil
+		    }
+			// Ignoring if not set (field is optional)
+		} else {  // Value was set, search was ok
+			isMember := isUnsetOrIsMember
+			result.IsAdmin = result.IsAdmin && isMember
+		}
+
+		// Restricted Group member
+
+		if !result.IsAdmin {
+			isUnsetOrIsMember, ok := ls.groupSearch(l, groupBase, ls.RestrictedGroupFilter, uid)
+			if !ok {  // Could be unexpected error or simply unset value
+				isUnset := isUnsetOrIsMember
+				if !isUnset {  // is unexpected error
+					log.Error("LDAP restricted group membership test failed unexpectedly !")
+					return nil
+				}
+				// Ignoring if not set (field is optional)
+			} else {  // Value was set, search was ok
+				isMember := isUnsetOrIsMember
+				result.IsRestricted = result.IsRestricted || isMember
+			}
+		}
+
+		if !result.IsAdmin && !result.IsRestricted {
+			isUnsetOrIsMember, ok := ls.groupSearch(l, groupBase, ls.MemberGroupFilter, uid)
+			if !ok {  // Could be unexpected error or simply unset value
+				isUnset := isUnsetOrIsMember
+				if !isUnset {  // is unexpected error
+					log.Error("LDAP group membership test failed unexpectedly !")
+					return nil
+				}
+				// Ignoring if not set (field is optional)
+			} else {  // Value was set, search was ok
+				isMember := isUnsetOrIsMember
+				if !isMember {
+					log.Trace("LDAP group membership test failed and inhibited user login.")
+					return nil
+				}
+			}
+		}
+
+	}
 
 	return result
 }

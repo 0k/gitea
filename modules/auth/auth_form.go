@@ -31,6 +31,13 @@ type AuthenticationForm struct {
 	Filter                        string
 	AdminFilter                   string
 	RestrictedFilter              string
+	GroupEnabled                  bool
+	GroupBase                     string
+	GroupMemberUID                string
+	UserAttributeInGroup          string
+	MemberGroupFilter             string
+	AdminGroupFilter              string
+	RestrictedGroupFilter         string
 	AllowDeactivateAll            bool
 	IsActive                      bool
 	IsSyncEnabled                 bool

@@ -103,3 +103,53 @@ share the following fields:
       matching parameter will be substituted with the user's username.
     * Example: (&(objectClass=posixAccount)(cn=%s))
     * Example: (&(objectClass=posixAccount)(uid=%s))
+
+**Verify group membership in LDAP** uses the following fields:
+
+* Group Search Base (required if Group Query Enabled)
+    * The LDAP base at which group accounts will be searched for.
+    * Example: ou=group,dc=mydomain,dc=com
+
+* User Attribute in Group (required if Group Query Enabled)
+    * Which user LDAP attribute is listed in the group.
+    * Example: uid
+
+* Group Attribute for User (required if Group Query Enabled)
+    * Which group LDAP attribute contains an array of the above user attribute names.
+    * Example: memberUid
+
+* Member Group Name Filter (optional)
+
+    * An LDAP filter declaring how to find valid groups for user
+      membership in the above DN. If specified, a user must be in at
+      least one of the matching group.
+
+      Note that if user's group is matching conditions for being admin
+      or a restricted user, they will also be granted corresponding
+      access and their group do not need to match also this filter to
+      be granted their access.
+
+    * Example: (cn=gitea-users)
+
+* Admin Group Name Filter (optional)
+    * An LDAP filter declaring how to find valid groups for admin
+      membership in the above DN. If specified, an user must be in at
+      least one of the matching group to be considered an admin
+      user. If you specified also an Admin User Filter, **both
+      conditions** needs to be met for the user to be granted admin
+      rights.
+    * Example: (|(cn=gitea-admins)(cn=admins))
+
+* Restricted Group Name Filter (optional)
+    * An LDAP filter declaring how to find valid groups for restricted
+      membership in the above DN. If specified, and not already an
+      administrator, a user must be in at least one of the matching
+      group to be considered a restricted user.  If you specified also
+      a Restricted User Filter, **only one of both conditions** needs
+      to be met for the user to be considered a restricted user.
+
+      Note that if user is already matching admin conditions, their
+      group won't be checked against this filter.
+
+    * Example: (cn=gitea-restricted-users)
+
