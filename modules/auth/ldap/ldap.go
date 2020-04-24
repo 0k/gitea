@@ -201,6 +201,36 @@ func checkRestricted(l *ldap.Conn, ls *Source, userDN string) bool {
 	return false
 }
 
+// ProcessUserEntry :
+func (ls *Source) ProcessUserEntry(entry *ldap.Entry, l *ldap.Conn) *SearchResult {
+	username := entry.GetAttributeValue(ls.AttributeUsername)
+	firstname := entry.GetAttributeValue(ls.AttributeName)
+	surname := entry.GetAttributeValue(ls.AttributeSurname)
+	mail := entry.GetAttributeValue(ls.AttributeMail)
+
+	var sshPublicKey []string
+	if len(strings.TrimSpace(ls.AttributeSSHPublicKey)) > 0 {
+		sshPublicKey = entry.GetAttributeValues(ls.AttributeSSHPublicKey)
+	}
+
+	isAdmin := checkAdmin(l, ls, entry.DN)
+	var isRestricted bool
+	if !isAdmin {
+		isRestricted = checkRestricted(l, ls, entry.DN)
+	}
+
+	return &SearchResult{
+		Username:     username,
+		Name:         firstname,
+		Surname:      surname,
+		Mail:         mail,
+		SSHPublicKey: sshPublicKey,
+		IsAdmin:      isAdmin,
+		IsRestricted: isRestricted,
+	}
+}
+
+
 // SearchEntry : search an LDAP source if an entry (name, passwd) is valid and in the specific filter
 func (ls *Source) SearchEntry(name, passwd string, directBind bool) *SearchResult {
 	// See https://tools.ietf.org/search/rfc4513#section-5.1.2
@@ -276,10 +306,8 @@ func (ls *Source) SearchEntry(name, passwd string, directBind bool) *SearchResul
 		return nil
 	}
 
-	var isAttributeSSHPublicKeySet = len(strings.TrimSpace(ls.AttributeSSHPublicKey)) > 0
-
 	attribs := []string{ls.AttributeUsername, ls.AttributeName, ls.AttributeSurname, ls.AttributeMail}
-	if isAttributeSSHPublicKeySet {
+	if len(strings.TrimSpace(ls.AttributeSSHPublicKey)) > 0 {
 		attribs = append(attribs, ls.AttributeSSHPublicKey)
 	}
 
@@ -302,20 +330,7 @@ func (ls *Source) SearchEntry(name, passwd string, directBind bool) *SearchResul
 		return nil
 	}
 
-	var sshPublicKey []string
-
-	username := sr.Entries[0].GetAttributeValue(ls.AttributeUsername)
-	firstname := sr.Entries[0].GetAttributeValue(ls.AttributeName)
-	surname := sr.Entries[0].GetAttributeValue(ls.AttributeSurname)
-	mail := sr.Entries[0].GetAttributeValue(ls.AttributeMail)
-	if isAttributeSSHPublicKeySet {
-		sshPublicKey = sr.Entries[0].GetAttributeValues(ls.AttributeSSHPublicKey)
-	}
-	isAdmin := checkAdmin(l, ls, userDN)
-	var isRestricted bool
-	if !isAdmin {
-		isRestricted = checkRestricted(l, ls, userDN)
-	}
+	result := ls.ProcessUserEntry(sr.Entries[0], l)
 
 	if !directBind && ls.AttributesInBind {
 		// binds user (checking password) after looking-up attributes in BindDN context
@@ -325,15 +340,8 @@ func (ls *Source) SearchEntry(name, passwd string, directBind bool) *SearchResul
 		}
 	}
 
-	return &SearchResult{
-		Username:     username,
-		Name:         firstname,
-		Surname:      surname,
-		Mail:         mail,
-		SSHPublicKey: sshPublicKey,
-		IsAdmin:      isAdmin,
-		IsRestricted: isRestricted,
-	}
+
+	return result
 }
 
 // UsePagedSearch returns if need to use paged search
@@ -387,23 +395,14 @@ func (ls *Source) SearchEntries() ([]*SearchResult, error) {
 		return nil, err
 	}
 
-	result := make([]*SearchResult, len(sr.Entries))
+	results := make([]*SearchResult, len(sr.Entries))
 
-	for i, v := range sr.Entries {
-		result[i] = &SearchResult{
-			Username: v.GetAttributeValue(ls.AttributeUsername),
-			Name:     v.GetAttributeValue(ls.AttributeName),
-			Surname:  v.GetAttributeValue(ls.AttributeSurname),
-			Mail:     v.GetAttributeValue(ls.AttributeMail),
-			IsAdmin:  checkAdmin(l, ls, v.DN),
-		}
-		if !result[i].IsAdmin {
-			result[i].IsRestricted = checkRestricted(l, ls, v.DN)
-		}
-		if isAttributeSSHPublicKeySet {
-			result[i].SSHPublicKey = v.GetAttributeValues(ls.AttributeSSHPublicKey)
+	for _, v := range sr.Entries {
+		result := ls.ProcessUserEntry(v, l)
+		if result != nil {
+			results = append(results, result)
 		}
 	}
 
-	return result, nil
+	return results, nil
 }
